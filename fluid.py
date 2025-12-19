@@ -222,3 +222,49 @@ class Example:
                 img.set_array(self.rho0.numpy())
 
         return (img,)
+    
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--device", type=str, default=None, help="Override the default Warp device.")
+    parser.add_argument("--num_frames", type=int, default=100000, help="Total number of frames.")
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run in headless mode, suppressing the opening of any graphical windows.",
+    )
+
+    args = parser.parse_known_args()[0]
+
+    with wp.ScopedDevice(args.device):
+        example = Example()
+
+        if args.headless:
+            for _ in range(args.num_frames):
+                example.step()
+        else:
+            import matplotlib
+            import matplotlib.animation as anim
+            import matplotlib.pyplot as plt
+
+            fig = plt.figure()
+
+            img = plt.imshow(
+                example.rho0.numpy(),
+                origin="lower",
+                animated=True,
+                interpolation="antialiased",
+            )
+            img.set_norm(matplotlib.colors.Normalize(0.0, 1.0))
+            seq = anim.FuncAnimation(
+                fig,
+                example.step_and_render_frame,
+                fargs=(img,),
+                frames=args.num_frames,
+                blit=True,
+                interval=8,
+                repeat=False,
+            )
+
+            plt.show()
