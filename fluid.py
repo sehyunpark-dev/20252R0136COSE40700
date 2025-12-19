@@ -116,3 +116,27 @@ def pressure_apply(p: wp.array2d(dtype=float), u: wp.array2d(dtype=wp.vec2)):
     f_p = wp.vec2(p[i + 1, j] - p[i - 1, j], p[i, j + 1] - p[i, j - 1]) * 0.5
 
     u[i, j] = u[i, j] - f_p
+    
+@wp.kernel
+def integrate(u: wp.array2d(dtype=wp.vec2), rho: wp.array2d(dtype=float), dt: float):
+    i, j = wp.tid()
+
+    # gravity
+    f_g = wp.vec2(-90.8, 0.0) * rho[i, j]
+
+    # integrate
+    u[i, j] = u[i, j] + dt * f_g
+
+    # fade
+    rho[i, j] = rho[i, j] * (1.0 - 0.1 * dt)
+
+
+@wp.kernel
+def init(rho: wp.array2d(dtype=float), u: wp.array2d(dtype=wp.vec2), radius: int, dir: wp.vec2):
+    i, j = wp.tid()
+
+    d = wp.length(wp.vec2(float(i - grid_width / 2), float(j - grid_height / 2)))
+
+    if d < radius:
+        rho[i, j] = 1.0
+        u[i, j] = dir
