@@ -168,3 +168,57 @@ class Example:
             with wp.ScopedCapture() as capture:
                 self.pressure_iterations()
             self.graph = capture.graph
+            
+    def step(self):
+        with wp.ScopedTimer("step"):
+            for _ in range(self.sim_substeps):
+                shape = (grid_width, grid_height)
+                dt = self.sim_dt
+
+                speed = 400.0
+                angle = math.sin(self.sim_time * 4.0) * 1.5
+                vel = wp.vec2(math.cos(angle) * speed, math.sin(angle) * speed)
+
+                # update emitters
+                wp.launch(init, dim=shape, inputs=[self.rho0, self.u0, 5, vel])
+
+                # force integrate
+                wp.launch(integrate, dim=shape, inputs=[self.u0, self.rho0, dt])
+                wp.launch(divergence, dim=shape, inputs=[self.u0, self.div])
+
+                # pressure solve
+                self.p0.zero_()
+                self.p1.zero_()
+
+                if self.use_cuda_graph:
+                    wp.capture_launch(self.graph)
+                else:
+                    self.pressure_iterations()
+
+                # velocity update
+                wp.launch(pressure_apply, dim=shape, inputs=[self.p0, self.u0])
+
+                # semi-Lagrangian advection
+                wp.launch(advect, dim=shape, inputs=[self.u0, self.u1, self.rho0, self.rho1, dt])
+
+                # swap buffers
+                (self.u0, self.u1) = (self.u1, self.u0)
+                (self.rho0, self.rho1) = (self.rho1, self.rho0)
+
+                self.sim_time += dt
+
+    def pressure_iterations(self):
+        for _ in range(self.iterations):
+            wp.launch(pressure_solve, dim=self.p0.shape, inputs=[self.p0, self.p1, self.div])
+
+            # swap pressure fields
+            (self.p0, self.p1) = (self.p1, self.p0)
+
+    def step_and_render_frame(self, frame_num=None, img=None):
+        self.step()
+
+        with wp.ScopedTimer("render"):
+            if img:
+                img.set_array(self.rho0.numpy())
+
+        return (img,)
