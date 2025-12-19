@@ -87,3 +87,32 @@ def divergence(u: wp.array2d(dtype=wp.vec2), div: wp.array2d(dtype=float)):
     dy = (u[i, j + 1][1] - u[i, j][1]) * 0.5
 
     div[i, j] = dx + dy
+
+@wp.kernel
+def pressure_solve(p0: wp.array2d(dtype=float), p1: wp.array2d(dtype=float), div: wp.array2d(dtype=float)):
+    i, j = wp.tid()
+
+    s1 = lookup_float(p0, i - 1, j)
+    s2 = lookup_float(p0, i + 1, j)
+    s3 = lookup_float(p0, i, j - 1)
+    s4 = lookup_float(p0, i, j + 1)
+
+    # Jacobi update
+    err = s1 + s2 + s3 + s4 - div[i, j]
+
+    p1[i, j] = err * 0.25
+
+
+@wp.kernel
+def pressure_apply(p: wp.array2d(dtype=float), u: wp.array2d(dtype=wp.vec2)):
+    i, j = wp.tid()
+
+    if i == 0 or i == grid_width - 1:
+        return
+    if j == 0 or j == grid_height - 1:
+        return
+
+    # pressure gradient
+    f_p = wp.vec2(p[i + 1, j] - p[i - 1, j], p[i, j + 1] - p[i, j - 1]) * 0.5
+
+    u[i, j] = u[i, j] - f_p
