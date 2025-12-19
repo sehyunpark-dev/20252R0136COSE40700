@@ -140,3 +140,31 @@ def init(rho: wp.array2d(dtype=float), u: wp.array2d(dtype=wp.vec2), radius: int
     if d < radius:
         rho[i, j] = 1.0
         u[i, j] = dir
+        
+class Example:
+    def __init__(self):
+        fps = 60
+        self.frame_dt = 1.0 / fps
+        self.sim_substeps = 2
+        self.iterations = 100  # Number of pressure iterations
+        self.sim_dt = self.frame_dt / self.sim_substeps
+        self.sim_time = 0.0
+
+        shape = (grid_width, grid_height)
+
+        self.u0 = wp.zeros(shape, dtype=wp.vec2)
+        self.u1 = wp.zeros(shape, dtype=wp.vec2)
+
+        self.rho0 = wp.zeros(shape, dtype=float)
+        self.rho1 = wp.zeros(shape, dtype=float)
+
+        self.p0 = wp.zeros(shape, dtype=float)
+        self.p1 = wp.zeros(shape, dtype=float)
+        self.div = wp.zeros(shape, dtype=float)
+
+        # capture pressure solve as a CUDA graph
+        self.use_cuda_graph = wp.get_device().is_cuda
+        if self.use_cuda_graph:
+            with wp.ScopedCapture() as capture:
+                self.pressure_iterations()
+            self.graph = capture.graph
