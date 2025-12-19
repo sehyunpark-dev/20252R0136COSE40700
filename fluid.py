@@ -52,3 +52,38 @@ def sample_vel(f: wp.array2d(dtype=wp.vec2), x: float, y: float):
 
     s = wp.lerp(s0, s1, ty)
     return s
+
+@wp.kernel
+def advect(
+    u0: wp.array2d(dtype=wp.vec2),
+    u1: wp.array2d(dtype=wp.vec2),
+    rho0: wp.array2d(dtype=float),
+    rho1: wp.array2d(dtype=float),
+    dt: float,
+):
+    i, j = wp.tid()
+
+    u = u0[i, j]
+
+    # trace backward
+    p = wp.vec2(float(i), float(j))
+    p = p - u * dt
+
+    # advect
+    u1[i, j] = sample_vel(u0, p[0], p[1])
+    rho1[i, j] = sample_float(rho0, p[0], p[1])
+
+
+@wp.kernel
+def divergence(u: wp.array2d(dtype=wp.vec2), div: wp.array2d(dtype=float)):
+    i, j = wp.tid()
+
+    if i == grid_width - 1:
+        return
+    if j == grid_height - 1:
+        return
+
+    dx = (u[i + 1, j][0] - u[i, j][0]) * 0.5
+    dy = (u[i, j + 1][1] - u[i, j][1]) * 0.5
+
+    div[i, j] = dx + dy
